@@ -1,7 +1,5 @@
 <template>
   <div id="app">
-    <button v-if="editorStatus === 'ready'" @click="exportHtml">Export HTML</button>
-
     <div class="container">
       <EmailEditor
         :appearance="appearance"
@@ -24,7 +22,11 @@ import { EmailEditor } from 'vue-email-editor'
 
 const emailEditor = ref(null)
 const editorStatus = ref('')
-const state = reactive({ design: {}, html: {}, images: [] })
+const state = reactive({ data: {}, images: [] })
+
+const props = defineProps({
+  user: { type: [Number, String], required: true },
+})
 
 const minHeight = '500px'
 const locale = 'en'
@@ -48,7 +50,7 @@ const tools = {
 }
 const options = {
   displayMode: 'email',
-  user: { id: '1111' },
+  user: { id: props.user },
   tabs: { uploads: true, dev: false, images: true, audit: true },
   features: { imageEditor: true, undoRedo: true, userUploads: true, stockImages: { enabled: true, safeSearch: true, defaultSearchTerm: 'food' } },
 }
@@ -56,6 +58,14 @@ const appearance = { theme: 'light', panels: { tools: { dock: 'right' } } }
 
 function editorLoaded() {
   editorStatus.value = 'loaded'
+  const unlayer = emailEditor.value.editor
+
+  // FIXME : get design from database
+  // state.data = ...
+  // state.images = ...
+  if (state.data?.design) unlayer.loadDesign(state.data.design)
+
+  // FIXME : remove it
   state.images = [
     {
       id: '1',
@@ -87,10 +97,6 @@ function editorLoaded() {
 function editorReady() {
   editorStatus.value = 'ready'
   const unlayer = emailEditor.value.editor
-
-  // FIXME : get design from database
-  // ...
-  // unlayer.loadDesign(state.design)
 
   // Image has beed uploaded
   unlayer.addEventListener('image:uploaded', function (data) {
@@ -131,39 +137,32 @@ function editorReady() {
     reader.readAsDataURL(blob)
 
     // FIXME : upload image to server
+    // axios/fetch/etc ...
     setTimeout(() => {
       done({ progress: 100, url: reader.result })
     }, 500)
-    // unlayer.reloadProvider('userUploads')
     // ...
   })
 
   // User uploaded image galery
   unlayer.registerProvider('userUploads', (params, done) => {
-    console.log('userUploads:', params)
-
     const { page = 1, searchText = '' } = params
     params.source = (params.source || []).filter(Boolean)
 
-    console.log(state.images)
-
-    // FIXME : get images galery from server
-    done(JSON.parse(JSON.stringify(state.images)), { page, perPage: state.images.length, searchText }) // TODO : _.cloneDeep
-    // ...
+    done(JSON.parse(JSON.stringify(state.images)), { page, perPage: state.images.length, searchText })
   })
 }
 
+/**
+ * ANCHOR: save returned data to database
+ * @returns {{amp: Record<PropertyKey, any>; chunks: Record<PropertyKey, any>; design: Record<PropertyKey, any>; html: string}}
+ */
 function exportHtml() {
-  emailEditor.value.editor.exportHtml((data) => {
-    const { design, html } = data
-    state.design = design
-    state.html = html
-
-    console.log('exportHtml', data)
-
-    // FIXME : sage design into database
-  })
+  emailEditor.value.editor.exportHtml((data) => (state.data = data))
+  return state.data
 }
+
+defineExpose({ exportHtml })
 </script>
 
 <style lang="css" scoped>
